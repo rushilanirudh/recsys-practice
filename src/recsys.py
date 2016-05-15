@@ -1,19 +1,32 @@
-#recsys.py
-
-from pyfm import pylibfm
-from sklearn.feature_extraction import DictVectorizer
 import numpy as np
+from sklearn.feature_extraction import DictVectorizer
+from pyfm import pylibfm
+from sklearn.metrics import mean_squared_error
 
-train = [
-    {"user": "1", "item": "5", "age": 19},
-    {"user": "2", "item": "43", "age": 33},
-    {"user": "3", "item": "20", "age": 55},
-    {"user": "4", "item": "10", "age": 20},
-]
+# Read in data
+def loadData(filename,path="ml-100k/"):
+    data = []
+    y = []
+    users=set()
+    items=set()
+    with open(path+filename) as f:
+        for line in f:
+            (user,movieid,rating,ts)=line.split('\t')
+            data.append({ "user_id": str(user), "movie_id": str(movieid)})
+            y.append(float(rating))
+            users.add(user)
+            items.add(movieid)
+
+    return (data, np.array(y), users, items)
+
+(train_data, y_train, train_users, train_items) = loadData("ua.base")
+(test_data, y_test, test_users, test_items) = loadData("ua.test")
 v = DictVectorizer()
-X = v.fit_transform(train)
-print(X.toarray())
-y = np.repeat(1.0,X.shape[0])
-fm = pylibfm.FM()
-fm.fit(X,y)
-fm.predict(v.transform({"user": "1", "item": "10", "age": 24}))
+X_train = v.fit_transform(train_data)
+X_test = v.transform(test_data)
+
+# Build and train a Factorization Machine
+fm = pylibfm.FM(num_factors=5, num_iter=30, verbose=True, task="regression", initial_learning_rate=0.005, learning_rate_schedule="optimal")
+fm.fit(X_train,y_train)
+preds = fm.predict(X_test)
+print("FM MSE: %.4f" % mean_squared_error(y_test,preds))
